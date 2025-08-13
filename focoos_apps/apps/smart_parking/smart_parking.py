@@ -1,3 +1,16 @@
+"""
+Smart Parking Application for Focoos AI.
+
+This module provides a complete smart parking solution that uses AI to detect
+parking occupancy in videos or images. It includes zone-based detection,
+interactive zone editing, and video processing capabilities.
+
+The application consists of:
+- Data structures for parking results and summaries
+- Interactive polygon zone editor for defining parking areas
+- Smart parking detection application using Focoos AI models
+"""
+
 import json
 import time
 from dataclasses import dataclass
@@ -45,10 +58,20 @@ class PolygonZonesEditor:
                        # 2) Left-click to add vertices (4 vertices per region)
                        # 3) Region automatically completes after 4th vertex
                        # 4) Undo last region
-                       # 5) Export to zones.json
+                       # 5) Export to the specified zones JSON file
     """
 
-    def __init__(self, image_path: Optional[str | Path] = None) -> None:
+    def __init__(self, image_path: Optional[str | Path] = None, zones_file: Optional[str | Path] = None) -> None:
+        """
+        Initialize the polygon zones editor.
+        
+        Sets up the Tkinter interface and initializes the drawing canvas.
+        Optionally loads an initial image if provided.
+        
+        Args:
+            image_path: Optional path to an image file to load initially
+            zones_file: Path where zones will be exported (defaults to zones.json)
+        """
         try:
             import tkinter as tk  # type: ignore
             from tkinter import filedialog, messagebox  # type: ignore
@@ -78,10 +101,18 @@ class PolygonZonesEditor:
         self._regions: List[List[Tuple[int, int]]] = []
         self._draft_points: List[Tuple[int, int]] = []
         
-        # Store the initial image path
+        # Store the initial image path and zones file path
         self._initial_image_path = Path(image_path) if image_path else None
+        self._zones_file_path = Path(zones_file) if zones_file else Path("zones.json")
 
     def run(self) -> None:
+        """
+        Start the interactive zone editor interface.
+        
+        Creates the main window with toolbar buttons and drawing canvas.
+        If an initial image was provided, it will be automatically loaded.
+        The interface remains open until the user closes the window.
+        """
         if self._tk is None:  # pragma: no cover - environment dependent
             return
 
@@ -110,7 +141,15 @@ class PolygonZonesEditor:
     # ---- UI callbacks
 
     def _load_image_from_path(self, image_path: str | Path) -> None:
-        """Load an image from a specific path."""
+        """
+        Load an image from a specific path and display it on the canvas.
+        
+        Resizes the image to fit within the maximum canvas dimensions
+        while maintaining aspect ratio. Clears any existing regions.
+        
+        Args:
+            image_path: Path to the image file to load
+        """
         assert self._tk is not None
         assert self._canvas is not None
 
@@ -133,12 +172,26 @@ class PolygonZonesEditor:
         self._draft_points.clear()
 
     def _on_load_image(self) -> None:
-        """Handle the Load Image button click."""
+        """
+        Handle the Load Image button click.
+        
+        Opens a file dialog for selecting an image file and loads it
+        into the editor if a file is selected.
+        """
         path = self._filedialog.askopenfilename(filetypes=[("Image Files", "*.png *.jpg *.jpeg")])
         if path:
             self._load_image_from_path(path)
 
     def _on_canvas_click(self, event: Any) -> None:
+        """
+        Handle mouse clicks on the canvas for adding polygon vertices.
+        
+        Adds the clicked point to the draft points list. When 4 points
+        are collected, automatically completes the region and starts a new one.
+        
+        Args:
+            event: Tkinter mouse event containing x, y coordinates
+        """
         if self._canvas is None:
             return
         self._draft_points.append((event.x, event.y))
@@ -151,6 +204,12 @@ class PolygonZonesEditor:
         self._draw()
 
     def _on_undo_point(self) -> None:
+        """
+        Handle the Undo Point button click.
+        
+        Removes the last added draft point if any exist.
+        Shows an info message if no points are available to undo.
+        """
         if not self._draft_points:
             self._messagebox.showinfo("Undo Point", "No points to undo")
             return
@@ -158,6 +217,12 @@ class PolygonZonesEditor:
         self._draw()
 
     def _on_undo_region(self) -> None:
+        """
+        Handle the Undo Region button click.
+        
+        Removes the last completed region if any exist.
+        Shows an info message if no regions are available to undo.
+        """
         if not self._regions:
             self._messagebox.showinfo("Undo", "No regions to undo")
             return
@@ -165,6 +230,13 @@ class PolygonZonesEditor:
         self._draw()
 
     def _on_export(self) -> None:
+        """
+        Handle the Export button click.
+        
+        Exports all completed regions to a JSON file. Scales the coordinates
+        from canvas space back to original image space. Shows success or
+        warning messages as appropriate.
+        """
         if self._image is None or self._canvas is None:
             self._messagebox.showwarning("Export", "Load an image and draw regions first")
             return
@@ -177,11 +249,17 @@ class PolygonZonesEditor:
             for region in self._regions
         ]
 
-        out_path = Path("zones.json")
+        out_path = self._zones_file_path
         out_path.write_text(json.dumps(data, indent=2))
         self._messagebox.showinfo("Export", f"Saved {len(data)} region(s) to {out_path}")
 
     def _draw(self) -> None:
+        """
+        Redraw the canvas with current image, regions, and draft points.
+        
+        Clears the canvas and redraws the background image, completed regions
+        in blue, draft polylines in orange, and draft points as red circles.
+        """
         if self._canvas is None or self._photo_image is None:
             return
         assert self._tk is not None
@@ -211,7 +289,11 @@ class PolygonZonesEditor:
 
 class SmartParkingApp(BaseApp):
     """
-    Zone-based parking occupancy using a Focoos model for object detection.
+    Zone-based parking occupancy detection using a Focoos model for object detection.
+
+    This application processes videos or images to detect parking occupancy
+    in predefined zones. It uses AI object detection to identify vehicles
+    and determines if they are within specified parking areas.
 
     Inputs:
         - image: np.ndarray in BGR (OpenCV convention)
@@ -229,16 +311,32 @@ class SmartParkingApp(BaseApp):
         model_path: Optional[str] = None,
         api_key: Optional[str] = None,
         model_ref: Optional[str] = None,
-        runtime_type: Optional[str] = None,
+        runtime: Optional[str] = None,
         image_size: Optional[int] = None,
         input_video: Optional[str | Path] = None,
         output_video: Optional[str | Path] = None,
     ) -> None:
+        """
+        Initialize the Smart Parking application.
+        
+        Sets up the AI model, loads parking zones, and configures visualization
+        parameters. If zones file doesn't exist, zones can be created interactively.
+        
+        Args:
+            zones_file: Path to JSON file containing parking zone definitions
+            model_path: Path to local model file (inherited from BaseApp)
+            api_key: Focoos API key for model access (inherited from BaseApp)
+            model_ref: Model reference identifier (inherited from BaseApp)
+            runtime: Runtime type for model execution (inherited from BaseApp)
+            image_size: Input image size for model optimization (inherited from BaseApp)
+            input_video: Path to input video file for processing
+            output_video: Path where annotated output video will be saved
+        """
         super().__init__(
             model_path=model_path,
             api_key=api_key,
             model_ref=model_ref,
-            runtime_type=runtime_type,
+            runtime=runtime,
             image_size=image_size,
         )
         
@@ -246,9 +344,8 @@ class SmartParkingApp(BaseApp):
         self._zones_path = Path(zones_file) if zones_file else None
         self._zones: List[Dict[str, Any]] = []
         
-        if self._zones_path is not None:
-            if not self._zones_path.exists():
-                raise FileNotFoundError(f"Zones file not found: {self._zones_path}")
+        # Load zones if file exists, otherwise will be created interactively
+        if self._zones_path is not None and self._zones_path.exists():
             self._zones = self._load_zones(self._zones_path)
 
         # Visualization options
@@ -270,6 +367,21 @@ class SmartParkingApp(BaseApp):
     # ---- Public API
 
     def process(self, image_bgr: np.ndarray) -> ParkingResult:
+        """
+        Process a single image to detect parking occupancy.
+        
+        Runs AI inference on the input image, checks vehicle detections
+        against defined parking zones, and returns annotated results.
+        
+        Args:
+            image_bgr: Input image in BGR format (OpenCV convention)
+            
+        Returns:
+            ParkingResult containing annotated image and summary statistics
+            
+        Raises:
+            RuntimeError: If model is not initialized
+        """
         if self.model is None:
             raise RuntimeError("Model is not initialized. Provide an init_config with model_ref or set self.model.")
 
@@ -342,7 +454,11 @@ class SmartParkingApp(BaseApp):
         Process the entire input video and save the annotated output.
         
         This method will process all frames in the input video, apply parking detection,
-        and save the annotated video to the output path.
+        and save the annotated video to the output path. Uses the VideoProcessor
+        class for efficient video handling.
+        
+        Raises:
+            ValueError: If input_video or output_video are not provided
         """
         if self._input_video is None or self._output_video is None:
             raise ValueError("Both input_video and output_video must be provided for video processing")
@@ -357,7 +473,8 @@ class SmartParkingApp(BaseApp):
         Run the appropriate processing based on initialization parameters.
         
         If input_video and output_video are provided, processes the video.
-        If no zones file is provided, starts the zone editor on the first frame.
+        If no zones are loaded (zones file doesn't exist), starts the zone editor
+        on the first frame to create zones interactively.
         Otherwise, this method does nothing (use process() for single images).
         """
         if self._input_video is not None and self._output_video is not None:
@@ -370,6 +487,14 @@ class SmartParkingApp(BaseApp):
     def _create_zones_interactively(self) -> None:
         """
         Create zones interactively using the first frame of the input video.
+        
+        Extracts the first frame from the input video, saves it temporarily,
+        and launches the PolygonZonesEditor to allow the user to draw parking zones.
+        After zones are created, they are loaded and the temporary file is cleaned up.
+        
+        Raises:
+            ValueError: If input_video is not provided
+            RuntimeError: If video cannot be read or zones are not created
         """
         if self._input_video is None:
             raise ValueError("Input video is required for interactive zone creation")
@@ -396,18 +521,17 @@ class SmartParkingApp(BaseApp):
             print("1. Left-click to add vertices for each parking zone")
             print("2. Region automatically completes after 4 vertices")
             print("3. Repeat for all parking zones")
-            print("4. Click 'Export' to save zones.json")
+            print("4. Click 'Export' to save the zones file")
             print("5. Close the editor window")
             
-            editor = PolygonZonesEditor(temp_frame_path)
+            editor = PolygonZonesEditor(temp_frame_path, self._zones_path)
             editor.run()
             
-            # Check if zones.json was created
-            zones_file = Path("zones.json")
+            # Check if zones.json was created and use the specified zones file path if provided
+            zones_file = self._zones_path if self._zones_path is not None else Path("zones.json")
             if zones_file.exists():
-                self._zones_path = zones_file
-                self._zones = self._load_zones(self._zones_path)
-                print(f"Loaded {len(self._zones)} zones from zones.json")
+                self._zones = self._load_zones(zones_file)
+                print(f"Loaded {len(self._zones)} zones from {zones_file}")
             else:
                 raise RuntimeError("No zones were created. Please create zones and export them.")
                 
@@ -415,38 +539,7 @@ class SmartParkingApp(BaseApp):
             # Clean up temporary file
             if temp_frame_path.exists():
                 temp_frame_path.unlink()
-    
-    def create_zones_from_image(self, image_path: str | Path) -> None:
-        """
-        Create zones interactively from a specific image.
-        
-        Args:
-            image_path: Path to the image file to use for zone creation
-        """
-        image_path = Path(image_path)
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image file not found: {image_path}")
-        
-        # Start the zone editor with the image already loaded
-        print("Starting zone editor. Please draw parking zones on the image.")
-        print("Instructions:")
-        print("1. Left-click to add vertices for each parking zone")
-        print("2. Region automatically completes after 4 vertices")
-        print("3. Repeat for all parking zones")
-        print("4. Click 'Export' to save zones.json")
-        print("5. Close the editor window")
-        
-        editor = PolygonZonesEditor(image_path)
-        editor.run()
-        
-        # Check if zones.json was created
-        zones_file = Path("zones.json")
-        if zones_file.exists():
-            self._zones_path = zones_file
-            self._zones = self._load_zones(self._zones_path)
-            print(f"Loaded {len(self._zones)} zones from zones.json")
-        else:
-            raise RuntimeError("No zones were created. Please create zones and export them.")
+
     
     def _process_frame_for_video(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -465,6 +558,21 @@ class SmartParkingApp(BaseApp):
 
     @staticmethod
     def _load_zones(path: Path) -> List[Dict[str, Any]]:
+        """
+        Load parking zones from a JSON file.
+        
+        Parses the JSON file and validates the structure to ensure
+        it contains the expected zone format.
+        
+        Args:
+            path: Path to the zones JSON file
+            
+        Returns:
+            List of zone dictionaries, each containing a 'points' field
+            
+        Raises:
+            ValueError: If JSON structure is invalid or missing required fields
+        """
         data = json.loads(path.read_text())
         if not isinstance(data, list):
             raise ValueError("Zones JSON must be a list of objects with a 'points' field")
@@ -474,6 +582,17 @@ class SmartParkingApp(BaseApp):
         return data
 
     def _put_label(self, image: np.ndarray, text: str, anchor: Tuple[int, int]) -> None:
+        """
+        Draw a text label with background on the image.
+        
+        Creates a dark background rectangle behind the text for better
+        visibility and draws the text in white.
+        
+        Args:
+            image: Image to draw on (modified in place)
+            text: Text string to display
+            anchor: (x, y) coordinates for text placement
+        """
         x, y = anchor
         (w, h), baseline = cv2.getTextSize(text, self._font, self._font_scale, thickness=1)
         pad = 3
@@ -487,6 +606,18 @@ class SmartParkingApp(BaseApp):
         cv2.putText(image, text, (x + 6 + pad, y + pad), self._font, self._font_scale, (255, 255, 255), thickness=1, lineType=cv2.LINE_AA)
 
     def _draw_stats_banner(self, image: np.ndarray, occupied: int, available: int, model_fps: float) -> None:
+        """
+        Draw a statistics banner on the image.
+        
+        Creates a dark banner at the top of the image showing occupancy
+        statistics and model performance metrics.
+        
+        Args:
+            image: Image to draw on (modified in place)
+            occupied: Number of occupied parking slots
+            available: Number of available parking slots
+            model_fps: Current model FPS performance
+        """
         text = f"Occupied: {occupied}   Available: {available}   Model FPS: {model_fps:.1f}"
         (w, h), _ = cv2.getTextSize(text, self._font, self._font_scale + 0.1, thickness=2)
         margin = 10
