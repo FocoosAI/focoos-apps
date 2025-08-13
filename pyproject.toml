@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 160
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[project]
+name = "focoos-apps"
+version = "0.1.0"
+description = "Vertical applications built on top of the Focoos AI SDK"
+authors = [{ name = "focoos.ai", email = "info@focoos.ai" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "opencv-python>=4.8",
+  "Pillow>=10.2.0",
+  "numpy>=2.2.6",
+  "typer>=0.9.0",
+  "rich>=13.0.0",
+  "click>=8.0.0",
+]
+
+
+[project.scripts]
+focoos-apps = "focoos_apps.cli.main:app_cli"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["focoos_apps*"]
