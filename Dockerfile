@@ -4,19 +4,18 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 LABEL authors="focoos.ai"
 RUN apt-get update --fix-missing && \
     apt-get install -y --no-install-recommends \
-    build-essential git ffmpeg libsm6 libxext6 gcc libmagic1 wget make cmake && \
+    build-essential git ffmpeg libsm6 libxext6 gcc libmagic1 wget make cmake python3.12-tk && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install the Focoos SDK from github with ONNX-CPU extras
 RUN uv pip install --system 'focoos[onnx-cpu] @ git+https://github.com/FocoosAI/focoos.git'
 
-# Copy focoos-apps code
+# Copy focoos-apps and install
 COPY pyproject.toml ./pyproject.toml
 COPY README.md ./README.md
 COPY focoos_apps ./focoos_apps
-# Install focoos-apps
-# RUN uv pip install --system -e .
+RUN uv pip install --system -e .
 
 # Thin runtime image for ONNX-CPU
 FROM focoos-cpu AS focoos-apps-cpu
@@ -28,7 +27,7 @@ CMD ["--help"]
 FROM ghcr.io/focoosai/deeplearning:base-cu12-cudnn9-py312-uv AS focoos-gpu
 LABEL authors="focoos.ai"
 RUN apt-get update --fix-missing && \
-    apt-get install -y --no-install-recommends git && \
+    apt-get install -y --no-install-recommends python3.12-tk && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -39,7 +38,7 @@ RUN uv pip install --system 'focoos[onnx] @ git+https://github.com/FocoosAI/foco
 COPY pyproject.toml ./pyproject.toml
 COPY README.md ./README.md
 COPY focoos_apps ./focoos_apps
-# RUN uv pip install --system -e .
+RUN uv pip install --system -e .
 
 FROM focoos-gpu AS focoos-apps-gpu
 ENTRYPOINT ["focoos-apps"]
@@ -47,8 +46,21 @@ CMD ["--help"]
 
 
 # TensorRT variant
-FROM focoos-gpu AS focoos-tensorrt
-RUN uv pip install --system 'focoos[tensorrt] @ git+https://github.com/FocoosAI/focoos.git'
+FROM ghcr.io/focoosai/deeplearning:cu12-cudnn9-py312-uv-tensorrt AS focoos-tensorrt
+LABEL authors="focoos.ai"
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends python3.12-tk && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# Install the Focoos SDK from github with ONNX-GPU and TensorRT extras
+RUN uv pip install --system 'focoos[onnx,tensorrt] @ git+https://github.com/FocoosAI/focoos.git'
+
+# Copy focoos-apps and install
+COPY pyproject.toml ./pyproject.toml
+COPY README.md ./README.md
+COPY focoos_apps ./focoos_apps
+RUN uv pip install --system -e .
 
 FROM focoos-tensorrt AS focoos-apps-tensorrt
 ENTRYPOINT ["focoos-apps"]
