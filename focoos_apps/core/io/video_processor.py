@@ -1,4 +1,10 @@
-"""Video processing utilities for reading and writing video files."""
+"""
+Video processing utilities for reading and writing video files.
+
+This module provides the VideoProcessor class for efficient video file handling,
+including reading frames, writing processed frames, and managing video properties.
+It supports context manager usage for automatic resource cleanup.
+"""
 
 import cv2
 from pathlib import Path
@@ -46,11 +52,26 @@ class VideoProcessor:
             raise RuntimeError(f"Error creating output video file: {self.output_path}")
     
     def __enter__(self):
-        """Context manager entry."""
+        """
+        Context manager entry.
+        
+        Returns:
+            self: The VideoProcessor instance for use in with statement
+        """
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup resources."""
+        """
+        Context manager exit - cleanup resources.
+        
+        Automatically releases video capture and writer resources
+        when exiting a with statement.
+        
+        Args:
+            exc_type: Exception type if an exception occurred
+            exc_val: Exception value if an exception occurred
+            exc_tb: Exception traceback if an exception occurred
+        """
         self.release()
     
     def read_frame(self) -> Tuple[bool, Optional[cv2.Mat]]:
@@ -86,11 +107,20 @@ class VideoProcessor:
             self.cap.release()
         if self.writer is not None:
             self.writer.release()
-        cv2.destroyAllWindows()
+        # Only destroy windows if we're in an environment that supports it
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            # Ignore errors in headless environments where GUI support is not available
+            pass
     
     def process_video(self, frame_processor) -> None:
         """
         Process entire video with a frame processor function.
+        
+        Reads all frames from the input video, applies the provided
+        frame processor function to each frame, and writes the processed
+        frames to the output video. Automatically handles resource cleanup.
         
         Args:
             frame_processor: Function that takes a frame and returns processed frame
