@@ -3,35 +3,13 @@ Base application class for Focoos AI applications.
 
 This module provides the foundational BaseApp class that handles model loading
 and initialization for all Focoos applications. It supports loading models
-from Focoos Hub references or local paths with various runtime options.
+from Focoos Hub with various runtime options.
 """
 
-from typing import Any, Optional, List, Union
+from typing import Any, Optional, List
 from focoos.hub import FocoosHUB
 from focoos.model_manager import ModelManager
 from focoos.ports import RuntimeType
-
-
-def map_runtime_string_to_type(runtime_str: Optional[str]) -> Optional[RuntimeType]:
-    """
-    Map runtime string options to RuntimeType enum values.
-    
-    Args:
-        runtime_str: String option ('cpu', 'cuda', 'tensorrt') or None
-        
-    Returns:
-        RuntimeType enum value or None
-    """
-    if runtime_str is None:
-        return None
-    
-    runtime_mapping = {
-        'cpu': RuntimeType.ONNX_CPU,
-        'cuda': RuntimeType.ONNX_CUDA32,
-        'tensorrt': RuntimeType.ONNX_TRT16,
-    }
-    
-    return runtime_mapping.get(runtime_str.lower())
 
 
 class BaseApp:
@@ -39,8 +17,7 @@ class BaseApp:
     Base class for all Focoos AI applications.
     
     This class provides common functionality for loading and managing AI models
-    from the Focoos ecosystem. It supports both local model paths and remote
-    model references from Focoos Hub.
+    from the Focoos ecosystem. It supports loading models from Focoos Hub.
     
     Attributes:
         model: The loaded AI model instance
@@ -49,40 +26,41 @@ class BaseApp:
 
     def __init__(
         self,
-        model_path: Optional[str] = None,
         api_key: Optional[str] = None,
         model_ref: Optional[str] = None,
-        runtime: Optional[Union[str, RuntimeType]] = None,
+        runtime: Optional[str] = None,
         image_size: Optional[int] = None,
     ):
         self.model: Any | None = None
         self.cls_names: List[str] = []
         
-        # Map runtime string to RuntimeType if needed
-        runtime_type = None
-        if isinstance(runtime, str):
-            runtime_type = map_runtime_string_to_type(runtime)
+        # Map runtime string to RuntimeType
+        if runtime is not None:
+            if runtime == "cpu":
+                runtime_type = RuntimeType.ONNX_CPU
+            elif runtime == "cuda":
+                runtime_type = RuntimeType.ONNX_CUDA32
+            elif runtime == "tensorrt":
+                runtime_type = RuntimeType.ONNX_TRT16
+            else:
+                raise ValueError(f"Invalid runtime: {runtime}")
         else:
-            runtime_type = runtime
+            runtime_type = None
         
-        # Prefer model_ref + runtime if provided; fallback to raw path loader
-        if model_ref:
-            self.load_model_from_ref(
-                model_ref=model_ref,
-                api_key=api_key,
-                runtime_type=runtime_type,
-                image_size=image_size,
-            )
-        elif model_path:
-            # TODO: implement model loading from path
-            raise NotImplementedError("Model loading from path is not implemented")
+        # Load model from Focoos Hub
+        self._load_model_from_ref(
+            model_ref=model_ref,
+            api_key=api_key,
+            runtime_type=runtime_type,
+            image_size=image_size,
+        )
 
 
-    def load_model_from_ref(
+    def _load_model_from_ref(
         self,
         model_ref: str,
         api_key: Optional[str] = None,
-        runtime_type: RuntimeType = RuntimeType.ONNX_TRT16,
+        runtime_type: RuntimeType = RuntimeType.ONNX_CPU,
         image_size: Optional[int] = None,
     ) -> bool:
         """
@@ -98,7 +76,7 @@ class BaseApp:
             else:
                 model = ModelManager.get(model_ref)
 
-            # Export to a specific runtime if requested (e.g., "cpu", "cuda", "tensorrt")
+            # Export to a specific runtime type if requested
             if runtime_type:
                 model = model.export(runtime_type=runtime_type, image_size=image_size)
             self.model = model
@@ -109,17 +87,17 @@ class BaseApp:
 
         return True
 
-    def process(self, *args: Any, **kwargs: Any):
+    def run(self, *args: Any, **kwargs: Any):
         """
-        Process method should be implemented by each App subclass.
+        Run method should be implemented by each App subclass.
         
         This is a placeholder method that should be overridden by subclasses
-        to implement their specific processing logic.
+        to implement their specific run logic.
         
         Args:
             *args: Variable length argument list
             **kwargs: Arbitrary keyword arguments
         """
-        raise NotImplementedError("Subclasses must implement the process method")
+        raise NotImplementedError("Subclasses must implement the run method")
 
 
