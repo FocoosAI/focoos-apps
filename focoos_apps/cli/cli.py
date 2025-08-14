@@ -27,7 +27,7 @@ app = typer.Typer(
 console = Console()
 
 
-@app.command()
+@app.command("list")
 def list():
     """List all available Focoos applications."""
     table = Table(title="Available Focoos Applications")
@@ -44,7 +44,7 @@ def list():
     console.print(table)
 
 
-@app.command()
+@app.command("smart-parking")
 def smart_parking(
     input_video: Path = typer.Option(
         ..., "--input-video", "-i", help="Input video file path"
@@ -105,17 +105,8 @@ def smart_parking(
         raise typer.Exit(1)
 
 
-@app.command()
+@app.command("version")
 def version():
     """Show version information."""
     from focoos_apps import __version__
     console.print(f"[cyan]Focoos Apps CLI Version: {__version__}[/cyan]")
-
-
-def app_cli():
-    """Main CLI entry point."""
-    app()
-
-
-if __name__ == "__main__":
-    app()
