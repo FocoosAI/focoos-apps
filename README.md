@@ -82,6 +82,6 @@ For support and questions:
 
 - 📧 Email: info@focoos.ai
 - 🐛 Issues: [GitHub Issues](https://github.com/FocoosAI/focoos-apps/issues)
-- 📚 Documentation: [Focoos AI Documentation](https://docs.focoos.ai)
+- 📚 Documentation: [Focoos AI Documentation](https://focoosai.github.io/focoos/)
 
 *Built with ❤️ by the Focoos AI team*

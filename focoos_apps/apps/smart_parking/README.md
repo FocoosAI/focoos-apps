@@ -17,7 +17,7 @@ The **Smart Parking Application** is an AI-powered solution for detecting and mo
 ### Focoos AI SDK Access
 
 You'll need:
-1. **API Key**: Get your API key from [Focoos AI Platform](https://platform.focoos.ai)
+1. **API Key**: Get your API key from [Focoos AI Platform](https://app.focoos.ai)
 2. **Model Reference**: Use the provided model reference or your own trained model
 3. **Runtime Type**: Choose between CPU, GPU, or optimized runtimes
 
@@ -169,8 +169,8 @@ brew install python-tk
 ### Getting Help
 
 - 📧 **Email**: info@focoos.ai
-- 🐛 **Issues**: [GitHub Issues](https://github.com/focoos-ai/focoos-apps/issues)
-- 📚 **Documentation**: [Focoos AI Docs](https://docs.focoos.ai)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/FocoosAI/focoos-apps/issues)
+- 📚 **Documentation**: [Focoos AI Docs](https://focoosai.github.io/focoos/)
 
 
 
