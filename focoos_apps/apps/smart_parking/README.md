@@ -33,12 +33,12 @@ from focoos_apps.apps.smart_parking import SmartParkingApp
 
 # Initialize the application
 parking_app = SmartParkingApp(
-    zones_file="path/to/zones.json",           # Zones file (optional)
-    api_key="your_api_key_here",               # Your Focoos API key
-    model_ref="hub://your_model_reference",    # Model reference
-    runtime="tensorrt",                   # Runtime type (cpu, cuda, tensorrt)
     input_video="path/to/input.mp4",           # Input video file
+    model_ref="hub://your_model_reference",    # Model reference
+    api_key="your_api_key_here",               # Your Focoos API key
     output_video="path/to/output.mp4"          # Output video file
+    zones_file="path/to/zones.json",           # Zones file (optional)
+    runtime="tensorrt",                   # Runtime type (cpu, cuda, tensorrt)
 )
 
 # Run the application
@@ -52,11 +52,11 @@ You can also use the application via command line:
 ```bash
 # Process video with existing zones
 focoos-apps smart-parking \
-    --zones-file zones.json \
     --input-video input.mp4 \
-    --output-video output.mp4 \
-    --api-key your_api_key_here \
     --model-ref hub://your_model_reference \
+    --api-key your_api_key_here \
+    --output-video output.mp4 \
+    --zones-file zones.json \
     --runtime tensorrt
 ```
 
