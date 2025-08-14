@@ -307,14 +307,13 @@ class SmartParkingApp(BaseApp):
 
     def __init__(
         self, 
-        zones_file: Optional[str | Path] = None, 
-        model_path: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model_ref: Optional[str] = None,
-        runtime: Optional[str] = None,
-        image_size: Optional[int] = None,
-        input_video: Optional[str | Path] = None,
+        input_video: str | Path,
+        model_ref: str,
         output_video: Optional[str | Path] = None,
+        api_key: Optional[str] = None,
+        runtime: Optional[str] = "cpu",
+        image_size: Optional[int] = None,
+        zones_file: Optional[str | Path] = None,
     ) -> None:
         """
         Initialize the Smart Parking application.
@@ -323,22 +322,27 @@ class SmartParkingApp(BaseApp):
         parameters. If zones file doesn't exist, zones can be created interactively.
         
         Args:
-            zones_file: Path to JSON file containing parking zone definitions
-            model_path: Path to local model file (inherited from BaseApp)
+            input_video: Path to input video file for processing
+            output_video: Path where annotated output video will be saved
             api_key: Focoos API key for model access (inherited from BaseApp)
             model_ref: Model reference identifier (inherited from BaseApp)
             runtime: Runtime type for model execution (inherited from BaseApp)
             image_size: Input image size for model optimization (inherited from BaseApp)
-            input_video: Path to input video file for processing
-            output_video: Path where annotated output video will be saved
+            zones_file: Path to JSON file containing parking zone definitions
         """
         super().__init__(
-            model_path=model_path,
             api_key=api_key,
             model_ref=model_ref,
             runtime=runtime,
             image_size=image_size,
         )
+
+        # Video input and output
+        self._input_video = Path(input_video)
+        if not self._input_video.exists():
+            raise FileNotFoundError(f"Input video file not found: {self._input_video}")
+
+        self._output_video = Path(output_video) if output_video else self._input_video.with_suffix(".annotated.mp4")
         
         # Initialize zones
         self._zones_path = Path(zones_file) if zones_file else None
@@ -347,22 +351,18 @@ class SmartParkingApp(BaseApp):
         # Load zones if file exists, otherwise will be created interactively
         if self._zones_path is not None and self._zones_path.exists():
             self._zones = self._load_zones(self._zones_path)
-
-        # Visualization options
-        self._color_available = (0, 160, 255)  # orange-ish for available
-        self._color_occupied = (60, 220, 20)   # green-ish for occupied
-        self._color_centroid = (240, 30, 180)  # magenta
-        self._line_thickness = 2
-        self._font_scale = 0.5
-        self._font = cv2.FONT_HERSHEY_SIMPLEX
-        
-        # Video processing
-        self._input_video = Path(input_video) if input_video else None
-        self._output_video = Path(output_video) if output_video else None
         
         # FPS tracking
         self._inference_times: List[float] = []
         self._max_fps_samples = 10  # Keep last 10 samples for FPS calculation
+
+        # Visualization options
+        self._color_available = self._hex_to_bgr("#63DCA7")      # green focoos for available
+        self._color_occupied = self._hex_to_bgr("#E23670")       # magenta focoos for occupied
+        self._color_centroid = self._hex_to_bgr("#025EE6")       # blue focoos for centroid
+        self._line_thickness = 2
+        self._font_scale = 0.5
+        self._font = cv2.FONT_HERSHEY_SIMPLEX
 
     # ---- Public API
 
@@ -410,20 +410,20 @@ class SmartParkingApp(BaseApp):
 
             for result in results.detections:
                 box = result.bbox if result.bbox is not None else np.empty(4)
-                cls_name = self.cls_names[result.cls_id]
                 x1, y1, x2, y2 = box
                 cx = int((x1 + x2) / 2)
                 cy = int((y1 + y2) / 2)
                 inside = cv2.pointPolygonTest(pts, (cx, cy), measureDist=False)
                 
-                # draw centroid for each detection
-                cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_centroid, thickness=-1)
-                
                 if inside >= 0:
-                    self._put_label(annotated, cls_name, (cx, cy))
+                    # draw centroid for detection inside the zone
+                    cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_occupied, thickness=-1)
                     is_occupied = True
                     break
-
+                else:
+                    # draw centroid for each other detection
+                    cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_centroid, thickness=-1)
+                
             if is_occupied:
                 occupied_count += 1
 
@@ -456,13 +456,7 @@ class SmartParkingApp(BaseApp):
         This method will process all frames in the input video, apply parking detection,
         and save the annotated video to the output path. Uses the VideoProcessor
         class for efficient video handling.
-        
-        Raises:
-            ValueError: If input_video or output_video are not provided
         """
-        if self._input_video is None or self._output_video is None:
-            raise ValueError("Both input_video and output_video must be provided for video processing")
-        
         from ...core.io import VideoProcessor
         
         with VideoProcessor(self._input_video, self._output_video) as processor:
@@ -471,18 +465,16 @@ class SmartParkingApp(BaseApp):
     def run(self) -> None:
         """
         Run the appropriate processing based on initialization parameters.
-        
-        If input_video and output_video are provided, processes the video.
+
         If no zones are loaded (zones file doesn't exist), starts the zone editor
         on the first frame to create zones interactively.
-        Otherwise, this method does nothing (use process() for single images).
         """
-        if self._input_video is not None and self._output_video is not None:
-            # If no zones are loaded, create them interactively from the first frame
-            if not self._zones:
-                self._create_zones_interactively()
-            
-            self.process_video()
+        if not self._zones:
+            self._create_zones_interactively()
+        
+        self.process_video()
+    
+    # ---- Internals
     
     def _create_zones_interactively(self) -> None:
         """
@@ -493,12 +485,8 @@ class SmartParkingApp(BaseApp):
         After zones are created, they are loaded and the temporary file is cleaned up.
         
         Raises:
-            ValueError: If input_video is not provided
             RuntimeError: If video cannot be read or zones are not created
         """
-        if self._input_video is None:
-            raise ValueError("Input video is required for interactive zone creation")
-        
         # Read the first frame
         cap = cv2.VideoCapture(str(self._input_video))
         if not cap.isOpened():
@@ -554,7 +542,27 @@ class SmartParkingApp(BaseApp):
         result = self.process(frame)
         return result.annotated_image
 
-    # ---- Internals
+    @staticmethod
+    def _hex_to_bgr(hex_color: str) -> Tuple[int, int, int]:
+        """
+        Convert hex color string to BGR tuple for OpenCV.
+        
+        Args:
+            hex_color: Hex color string (e.g., "#63DCA7")
+            
+        Returns:
+            BGR tuple (blue, green, red)
+        """
+        # Remove the # if present
+        hex_color = hex_color.lstrip('#')
+        
+        # Convert hex to RGB
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        
+        # Return as BGR (OpenCV format)
+        return (b, g, r)
 
     @staticmethod
     def _load_zones(path: Path) -> List[Dict[str, Any]]:
