@@ -14,8 +14,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-# Import available apps
-from focoos_apps.apps.smart_parking import SmartParkingApp
 
 # Initialize Typer app for CLI interface
 app = typer.Typer(
@@ -48,8 +46,8 @@ def list():
 
 @app.command()
 def smart_parking(
-    input_video: Optional[Path] = typer.Option(
-        None, "--input-video", "-i", help="Input video file path"
+    input_video: Path = typer.Option(
+        ..., "--input-video", "-i", help="Input video file path"
     ),
     output_video: Optional[Path] = typer.Option(
         None, "--output-video", "-o", help="Output video file path"
@@ -63,22 +61,18 @@ def smart_parking(
     model_ref: str = typer.Option(
         ..., "--model-ref", "-m", help="Model reference"
     ),
-    runtime: str = typer.Option(
-        "tensorrt", "--runtime", "-r", help="Runtime type (cpu, cuda, tensorrt)"
+    runtime: Optional[str] = typer.Option(
+        "cpu", "--runtime", "-r", help="Runtime type (cpu, cuda, tensorrt)"
     )
 ):
+    from focoos_apps.apps.smart_parking import SmartParkingApp
     """
     Launch Smart Parking application.
     
     This application detects parking occupancy in videos using Focoos AI models.
     """
     try:
-        # Validate inputs
-        if not input_video:
-            console.print("[red]Error: --input-video must be provided[/red]")
-            raise typer.Exit(1)
-        
-        if input_video and not input_video.exists():
+        if not input_video.exists():
             console.print(f"[red]Error: Input video file not found: {input_video}[/red]")
             raise typer.Exit(1)
 
@@ -87,15 +81,10 @@ def smart_parking(
             "api_key": api_key,
             "model_ref": model_ref,
             "runtime": runtime,
+            "input_video": input_video,
+            "output_video": output_video,
+            "zones_file": zones_file
         }
-        
-        if zones_file:
-            app_config["zones_file"] = str(zones_file)
-        
-        if input_video:
-            app_config["input_video"] = str(input_video)
-            if output_video:
-                app_config["output_video"] = str(output_video)
         
         console.print(Panel.fit(
             "[bold cyan]Starting Smart Parking Application[/bold cyan]\n"
