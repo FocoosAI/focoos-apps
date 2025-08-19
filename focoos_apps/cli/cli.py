@@ -46,20 +46,20 @@ def list():
 
 @app.command("smart-parking")
 def smart_parking(
+    model_name: str = typer.Option(
+        ..., "--model-name", "-m", help="Model name, path, or hub reference (e.g., 'hub://username/model_ref')"
+    ),
     input_video: Path = typer.Option(
         ..., "--input-video", "-i", help="Input video file path"
+    ),
+    api_key:  Optional[str] = typer.Option(
+        None, "--api-key", "-k", help="Focoos API key"
     ),
     output_video: Optional[Path] = typer.Option(
         None, "--output-video", "-o", help="Output video file path"
     ),
     zones_file: Optional[Path] = typer.Option(
         None, "--zones-file", "-z", help="Zones configuration file path"
-    ),
-    api_key: str = typer.Option(
-        ..., "--api-key", "-k", help="Focoos API key"
-    ),
-    model_ref: str = typer.Option(
-        ..., "--model-ref", "-m", help="Model reference"
     ),
     runtime: Optional[str] = typer.Option(
         "cpu", "--runtime", "-r", help="Runtime type (cpu, cuda, tensorrt)"
@@ -79,7 +79,7 @@ def smart_parking(
         # Create app instance
         app_config = {
             "api_key": api_key,
-            "model_ref": model_ref,
+            "model_name": model_name,
             "runtime": runtime,
             "input_video": input_video,
             "output_video": output_video,
@@ -88,7 +88,7 @@ def smart_parking(
         
         console.print(Panel.fit(
             "[bold cyan]Starting Smart Parking Application[/bold cyan]\n"
-            f"Model: {model_ref}\n"
+            f"Model: {model_name}\n"
             f"Runtime: {runtime}",
             border_style="cyan"
         ))
