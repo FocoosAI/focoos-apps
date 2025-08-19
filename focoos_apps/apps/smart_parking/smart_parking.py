@@ -308,12 +308,13 @@ class SmartParkingApp(BaseApp):
     def __init__(
         self, 
         input_video: str | Path,
-        model_ref: str,
+        model_name: str,
         output_video: Optional[str | Path] = None,
         api_key: Optional[str] = None,
         runtime: Optional[str] = "cpu",
         image_size: Optional[int] = None,
         zones_file: Optional[str | Path] = None,
+        smoothing_frames: int = 15,
     ) -> None:
         """
         Initialize the Smart Parking application.
@@ -325,14 +326,15 @@ class SmartParkingApp(BaseApp):
             input_video: Path to input video file for processing
             output_video: Path where annotated output video will be saved
             api_key: Focoos API key for model access (inherited from BaseApp)
-            model_ref: Model reference identifier (inherited from BaseApp)
+            model_name: Model name, path, or hub reference (e.g., "hub://username/model_ref")
             runtime: Runtime type for model execution (inherited from BaseApp)
             image_size: Input image size for model optimization (inherited from BaseApp)
             zones_file: Path to JSON file containing parking zone definitions
+            smoothing_frames: Number of frames to consider for temporal smoothing (default: 15)
         """
         super().__init__(
             api_key=api_key,
-            model_ref=model_ref,
+            model_name=model_name,
             runtime=runtime,
             image_size=image_size,
         )
@@ -351,6 +353,14 @@ class SmartParkingApp(BaseApp):
         # Load zones if file exists, otherwise will be created interactively
         if self._zones_path is not None and self._zones_path.exists():
             self._zones = self._load_zones(self._zones_path)
+        
+        # Temporal smoothing configuration
+        self._smoothing_frames = max(1, smoothing_frames)  # Ensure at least 1 frame
+        self._zone_history: List[List[bool]] = [[] for _ in range(len(self._zones))]
+        
+        # Initialize zone history if zones were loaded
+        if self._zones:
+            self._update_zone_history()
         
         # FPS tracking
         self._inference_times: List[float] = []
@@ -404,7 +414,7 @@ class SmartParkingApp(BaseApp):
         annotated = image_bgr.copy()
 
         # Evaluate occupancy per zone
-        for zone in self._zones:
+        for zone_idx, zone in enumerate(self._zones):
             pts = np.asarray(zone["points"], dtype=np.int32).reshape((-1, 1, 2))
             is_occupied = False
 
@@ -416,14 +426,25 @@ class SmartParkingApp(BaseApp):
                 inside = cv2.pointPolygonTest(pts, (cx, cy), measureDist=False)
                 
                 if inside >= 0:
-                    # draw centroid for detection inside the zone
-                    cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_occupied, thickness=-1)
                     is_occupied = True
                     break
-                else:
-                    # draw centroid for each other detection
-                    cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_centroid, thickness=-1)
+
+            # Temporal smoothing for occupancy prediction
+            if self._smoothing_frames > 1:
+                self._zone_history[zone_idx].append(is_occupied)
+                if len(self._zone_history[zone_idx]) > self._smoothing_frames:
+                    self._zone_history[zone_idx].pop(0)
                 
+                # Use simple logic: if at least one frame shows occupied, mark as occupied
+                # Otherwise, if all frames show free, mark as available
+                if len(self._zone_history[zone_idx]) >= 1:
+                    # Check if there's at least one occupied frame in history
+                    if any(self._zone_history[zone_idx]):
+                        is_occupied = True
+                    else:
+                        # All frames in history show free
+                        is_occupied = False
+
             if is_occupied:
                 occupied_count += 1
 
@@ -435,6 +456,14 @@ class SmartParkingApp(BaseApp):
                 color=self._color_occupied if is_occupied else self._color_available,
                 thickness=self._line_thickness,
             )
+
+        # draw the detections
+        for result in results.detections:
+            box = result.bbox if result.bbox is not None else np.empty(4)
+            x1, y1, x2, y2 = box
+            cx = int((x1 + x2) / 2)
+            cy = int((y1 + y2) / 2)
+            cv2.circle(annotated, (cx, cy), radius=max(3, self._line_thickness * 2), color=self._color_centroid, thickness=-1)
 
         available_count = total_zones - occupied_count
         self._draw_stats_banner(annotated, occupied_count, available_count, model_fps)
@@ -519,6 +548,7 @@ class SmartParkingApp(BaseApp):
             zones_file = self._zones_path if self._zones_path is not None else Path("zones.json")
             if zones_file.exists():
                 self._zones = self._load_zones(zones_file)
+                self._update_zone_history()
                 print(f"Loaded {len(self._zones)} zones from {zones_file}")
             else:
                 raise RuntimeError("No zones were created. Please create zones and export them.")
@@ -626,6 +656,7 @@ class SmartParkingApp(BaseApp):
             available: Number of available parking slots
             model_fps: Current model FPS performance
         """
+        # Base text with occupancy and FPS
         text = f"Occupied: {occupied}   Available: {available}   Model FPS: {model_fps:.1f}"
         (w, h), _ = cv2.getTextSize(text, self._font, self._font_scale + 0.1, thickness=2)
         margin = 10
@@ -640,6 +671,19 @@ class SmartParkingApp(BaseApp):
             thickness=2,
             lineType=cv2.LINE_AA,
         )
+
+    def _update_zone_history(self) -> None:
+        """
+        Initialize or update the zone history based on the loaded zones.
+        This ensures that the history is correctly sized and populated
+        with empty lists for each zone.
+        """
+        # Ensure history is initialized to the correct size
+        if len(self._zone_history) != len(self._zones):
+            self._zone_history = [[] for _ in range(len(self._zones))]
+        # Clear existing history if zones were loaded from a file
+        for zone_idx in range(len(self._zone_history)):
+            self._zone_history[zone_idx].clear()
 
 
 __all__ = [
