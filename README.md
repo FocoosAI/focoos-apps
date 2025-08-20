@@ -48,15 +48,30 @@ cd focoos-apps
 pip install -e .
 ```
 
+### Using Pretrained Models
+
+Each application in this repository can be used with our pretrained sample models. The download instructions and usage information for these models are explained in detail in each application's README file.
+
+### Training Custom Models
+
+For custom use cases and specific requirements, you can train your own models using the Focoos AI platform. Here's the process:
+
+1. **Sign up to the platform**: Create an account on the [Focoos AI Platform](https://platform.focoos.ai)
+2. **Load a custom dataset**: Prepare and upload your dataset with proper annotations
+3. **Choose a pretrained model**: Select a base model that matches your task requirements
+4. **Launch the training**: Start the fine-tuning process on your specific dataset
+5. **Monitor the training**: Track progress and performance metrics in real-time
+6. **Export and deploy**: Once training is complete, export your model for various runtime types
+7. **Deploy custom models**: Each application's README contains instructions on how to download and deploy your custom trained models
+
 ### Quick Start
 
 Each application has its own detailed usage guide. Start with the [Smart Parking application](focoos_apps/apps/smart_parking/README.md) to see how to:
 
-1. Set up your environment
-2. Configure the application
-3. Process videos or images
-4. Create custom parking zones
-5. Generate annotated outputs
+1. Configure the application
+2. Process videos or images
+3. Create custom parking zones
+4. Generate annotated outputs
 
 ## Architecture
 
