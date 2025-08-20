@@ -22,42 +22,92 @@ You'll need:
 3. **Runtime Type**: Choose between CPU, GPU, or optimized runtimes
 
 
-## Usage Example
+## Usage Examples
 
 The Smart Parking Application automatically handles parking zones based on whether a zones file exists:
 
-### Python API
+### Quick Start with Pretrained Model
+
+You can quickly get started by downloading our pretrained model, example video, and parking zones annotation file:
+
+```bash
+# Download the pretrained model and example data
+wget https://public.focoos.ai/apps/smart_parking.tar.gz
+
+# Extract the files
+tar -xzf smart_parking.tar.gz
+```
+
+The extracted folder contains:
+```
+smart_parking/
+├── model/                # Pretrained model
+├── parking_lot.mp4       # Example video
+└── parking_zones.json    # Parking zones
+```
+
+#### Command Line Interface with Pretrained Model
+
+```bash
+# Process video with pretrained model
+focoos-apps smart-parking \
+    --input-video smart_parking/parking_lot.mp4 \
+    --model-name smart_parking/model \
+    --zones-file smart_parking/parking_zones.json \
+    --runtime tensorrt
+```
+
+#### Python API with Pretrained Model
 
 ```python
 from focoos_apps.apps.smart_parking import SmartParkingApp
 
-# Initialize the application
+# Initialize the application with pretrained model
 parking_app = SmartParkingApp(
-    input_video="path/to/input.mp4",           # Input video file
-    model_ref="hub://your_model_reference",    # Model reference
-    api_key="your_api_key_here",               # Your Focoos API key
-    output_video="path/to/output.mp4"          # Output video file
-    zones_file="path/to/zones.json",           # Zones file (optional)
-    runtime="tensorrt",                   # Runtime type (cpu, cuda, tensorrt)
+    input_video="smart_parking/parking_lot.mp4",            # Input video file
+    model_name="smart_parking/model",                       # Local model path
+    zones_file="smart_parking/parking_zones.json",          # Zones file
+    runtime="tensorrt"                                      # Runtime type (cpu, cuda, tensorrt)
 )
 
 # Run the application
 parking_app.run()
 ```
 
-### Command Line Interface
+### Using Models from Focoos Platform
 
-You can also use the application via command line:
+For production use or custom models, you can use models from the Focoos AI platform:
+
+#### Python API with Focoos Platform Model
+
+#### Command Line Interface with Focoos Platform Model
 
 ```bash
-# Process video with existing zones
+# Process video with Focoos platform model
 focoos-apps smart-parking \
     --input-video input.mp4 \
-    --model-ref hub://your_model_reference \
+    --model-name hub://your_model_reference \
     --api-key your_api_key_here \
     --output-video output.mp4 \
     --zones-file zones.json \
     --runtime tensorrt
+```
+
+```python
+from focoos_apps.apps.smart_parking import SmartParkingApp
+
+# Initialize the application with Focoos platform model
+parking_app = SmartParkingApp(
+    input_video="path/to/input.mp4",             # Input video file
+    model_name="hub://your_model_reference",     # Model reference from Focoos platform
+    api_key="your_api_key_here",                 # Your Focoos API key
+    output_video="path/to/output.mp4",           # Output video file (optional)
+    zones_file="path/to/zones.json",             # Zones file (optional)
+    runtime="tensorrt",                          # Runtime type (cpu, cuda, tensorrt)
+)
+
+# Run the application
+parking_app.run()
 ```
 
 **Application Behavior:**
